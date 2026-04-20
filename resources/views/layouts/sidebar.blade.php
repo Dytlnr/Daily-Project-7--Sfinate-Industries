@@ -8,7 +8,7 @@
     x-transition:leave-end="-translate-x-full opacity-0"
     x-cloak
     @click.outside="if (window.innerWidth < 768) sidebarOpen = false"
-    class="fixed md:relative top-0 left-0 w-64 h-screen bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 text-gray-700 dark:text-gray-200 shadow-lg z-40 md:z-auto transform transition-transform md:translate-x-0 border-r border-gray-100 dark:border-gray-700"
+    class="fixed md:relative top-0 left-0 w-64 h-screen md:min-h-screen md:self-stretch bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 text-gray-700 dark:text-gray-200 shadow-lg z-40 md:z-auto transform transition-transform md:translate-x-0 border-r border-gray-100 dark:border-gray-700 flex flex-col overflow-y-auto overflow-x-hidden"
     :class="{ '-translate-x-full': !sidebarOpen && window.innerWidth < 768 }"
     style="z-index: 999;"
 >
@@ -16,8 +16,15 @@
     <div class="p-6 flex flex-col items-center border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
         <div class="relative mb-3">
             <div class="absolute -inset-1 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full blur opacity-30"></div>
-            <img src="{{ asset('logo/' . $global_pengaturan->logo) }}" alt="Logo"
-                 class="relative w-14 h-14 rounded-full shadow-md border-2 border-white dark:border-gray-800">
+            @php
+                $logoPath = $global_pengaturan?->logo;
+            @endphp
+            @if (!empty($logoPath))
+                <img src="{{ asset('logo/' . $logoPath) }}" alt="Logo"
+                     class="relative w-14 h-14 rounded-full shadow-md border-2 border-white dark:border-gray-800">
+            @else
+                <div class="relative w-14 h-14 rounded-full shadow-md border-2 border-white dark:border-gray-800 bg-gradient-to-br from-indigo-200 to-purple-200 dark:from-gray-700 dark:to-gray-800"></div>
+            @endif
         </div>
         <div class="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
             SFINATE INDUSTRIES
@@ -25,7 +32,7 @@
     </div>
 
     {{-- Menu --}}
-    <nav class="mt-6 px-4 space-y-1 text-sm" x-data="{ open: null }">
+    <nav class="mt-6 px-4 pb-6 space-y-1 text-sm flex-1" x-data="{ open: null }">
         {{-- Dashboard --}}
         <a href="{{ route('dashboard') }}" class="flex items-center gap-3 py-3 px-4 rounded-xl transition-all duration-200 hover:bg-white hover:shadow-sm dark:hover:bg-gray-800/70 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 group">
             <div class="p-1.5 rounded-lg bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-gray-700 dark:to-gray-800 group-hover:from-indigo-100 group-hover:to-purple-100 dark:group-hover:from-gray-600">
@@ -43,7 +50,6 @@
                     'items' => [
                         ['label' => 'Daftar Barang', 'route' => 'barang.index'],
                         ['label' => 'Jenis Barang', 'route' => 'jenis-barang.index'],
-                        ['label' => 'Barang Masuk', 'route' => 'barang_masuk.index'],
                     ],
                 ],
                 [

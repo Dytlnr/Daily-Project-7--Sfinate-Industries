@@ -20,7 +20,12 @@ class BarangController extends Controller
         ->paginate(10)
         ->withQueryString();
 
-        return view('barang.index', compact('barangs'));
+        $barangMasukTerbaru = BarangMasuk::orderByDesc('tanggal_masuk')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        return view('barang.index', compact('barangs', 'barangMasukTerbaru'));
     }
 
     public function create()

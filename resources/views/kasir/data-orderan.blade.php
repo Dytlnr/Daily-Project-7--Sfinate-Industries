@@ -3,7 +3,20 @@
 @section('content')
 <div class="max-w-6xl mx-auto p-4">
     <h2 class="text-2xl font-bold mb-4 text-gray-700 dark:text-white">📋 Data Orderan</h2>
-    {{-- @if(session('success'))
+    <div class="bg-white dark:bg-gray-800 rounded shadow p-4 mb-6">
+        <form action="{{ route('kasir.data') }}" method="GET" class="flex flex-col md:flex-row gap-3">
+            <input type="text" name="search" value="{{ request('search') }}"
+                   placeholder="Cari kode order, nama pelanggan, no invoice, nama orderan..."
+                   class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            <div class="flex gap-2">
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Cari</button>
+                @if(request('search'))
+                    <a href="{{ route('kasir.data') }}" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Reset</a>
+                @endif
+            </div>
+        </form>
+    </div>
+    @if(session('success'))
         <div class="mb-4 p-4 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
             {{ session('success') }}
         </div>
@@ -13,13 +26,13 @@
         <div class="mb-4 p-4 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
             {{ session('error') }}
         </div>
-    @endif --}}
+    @endif
     @if(session('poin_didapat'))
         <div class="bg-green-100 text-green-800 px-4 py-2 rounded mb-4">
             🎉 Anda mendapatkan <strong>{{ session('poin_didapat') }}</strong> poin dari transaksi ini!
         </div>
     @endif
-    @foreach ($orderans as $order)
+    @forelse ($orderans as $order)
         <div class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded shadow p-4 mb-6">
             <div class="flex justify-between items-center mb-2">
                 <div>
@@ -210,7 +223,15 @@
 
             </table>
         </div>
-    @endforeach
+    @empty
+        <div class="bg-white dark:bg-gray-800 rounded shadow p-4 mb-6 text-gray-600 dark:text-gray-300">
+            Data orderan tidak ditemukan.
+        </div>
+    @endforelse
+
+    <div class="mt-4">
+        {{ $orderans->links('vendor.pagination.tailwind') }}
+    </div>
 </div>
 
 {{-- Modal Popup Pembayaran --}}
@@ -252,9 +273,9 @@
                 <div>
                     <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Nama Orderan</label>
                     <input type="text" name="nama_orderan" id="modal_nama_orderan"
-                        placeholder="Masukkan nama orderan..."
+                        placeholder="Masukkan nama orderan (opsional)..."
                         class="w-full border rounded-lg mt-1 p-2 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
-                        required>
+                    >
                 </div>
 
                 <div>
@@ -283,9 +304,9 @@
                 <div>
                     <label class="block text-sm text-gray-700 dark:text-gray-300 mb-1">No WhatsApp</label>
                     <input type="text" name="no_whatsapp" id="no_whatsapp"
-                        placeholder="08xxxxxxxxxx"
+                        placeholder="08xxxxxxxxxx (opsional)"
                         class="w-full border rounded-lg mt-1 p-2 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
-                        required>
+                    >
                 </div>
 
                 <div>
@@ -322,15 +343,20 @@
 <script>
     function openModal(orderanId, totalKotor, totalDiskon, totalDp, sisaBayar) {
         document.getElementById('modal_orderan_id').value = orderanId;
-        document.getElementById('formBayar').setAttribute('action', '/bayar/' + orderanId);
+        document.getElementById('formBayar').setAttribute('action', '{{ url('/bayar') }}/' + orderanId);
 
         document.getElementById('modal_total_kotor').textContent = 'Rp' + Number(totalKotor).toLocaleString('id-ID');
         document.getElementById('modal_total_diskon').textContent = '- Rp' + Number(totalDiskon).toLocaleString('id-ID');
         document.getElementById('modal_total_dp').textContent = '- Rp' + Number(totalDp).toLocaleString('id-ID');
         document.getElementById('modal_total_harga').textContent = 'Rp' + Number(sisaBayar).toLocaleString('id-ID');
 
-        document.getElementById('modal_nama_orderan').value = ''; // ← kosong, diketik manual
-        document.getElementById('modal_jumlah_bayar').value = sisaBayar;
+        const sisa = Number(sisaBayar) || 0;
+        document.getElementById('modal_jumlah_bayar').value = sisa > 0 ? sisa : 0;
+        document.getElementById('modal_nama_orderan').value = '';
+        document.getElementById('no_whatsapp').value = '';
+        document.getElementById('is_dp').checked = false;
+        document.getElementById('jatuh_tempo_container').classList.add('hidden');
+        document.querySelector('input[name="jatuh_tempo"]').value = '';
 
         document.getElementById('modalBayar').classList.remove('hidden');
     }

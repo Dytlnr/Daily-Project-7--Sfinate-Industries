@@ -11,17 +11,38 @@
             @csrf
 
             <div>
-                <label for="barang_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Barang</label>
-                <select name="barang_id" id="barang_id"
-                        class="w-full mt-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                        required>
-                    <option value="" disabled selected>-- Pilih Barang --</option>
+                <label for="barang_picker" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Barang</label>
+                <div class="relative mt-1">
+                    <input type="text" id="barang_picker" list="barang_list"
+                           class="w-full rounded-md border-gray-300 dark:border-gray-600 bg-white text-black placeholder:text-black dark:bg-gray-700 dark:text-white dark:placeholder:text-white pr-10 appearance-none"
+                           placeholder="-- Pilih Barang --" autocomplete="off" required>
+                    <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-300"
+                         xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                    </svg>
+                </div>
+                <datalist id="barang_list">
                     @foreach ($barangs as $barang)
-                        <option value="{{ $barang->id }}">
-                            {{ $barang->lokasi }} || {{ $barang->nama_barang }} || {{ $barang->warna }} - Rp{{ number_format($barang->harga_satuan) }} || ({{ $barang->stok }} {{ $barang->satuan }})
-                        </option>
+                        <option data-id="{{ $barang->id }}"
+                                data-ukuran="{{ $barang->ukuran ?? '' }}"
+                                data-gramasi="{{ $barang->jenis_kaos ?? '' }}"
+                                value="{{ $barang->lokasi }} || {{ $barang->nama_barang }} || {{ $barang->warna }} - Rp{{ number_format($barang->harga_satuan) }} || ({{ $barang->stok }} {{ $barang->satuan }})"></option>
                     @endforeach
-                </select>
+                </datalist>
+                <input type="hidden" name="barang_id" id="barang_id">
+                <div id="barang_ref_info" class="mt-2 text-xs text-gray-600 dark:text-gray-300 hidden">
+                    <div>Ukuran barang: <span id="barang_ref_ukuran" class="font-semibold">-</span></div>
+                    <div>Gramasi barang: <span id="barang_ref_gramasi" class="font-semibold">-</span></div>
+                    <div id="barang_ref_warning" class="mt-1 text-amber-600 dark:text-amber-400 hidden"></div>
+                </div>
+            </div>
+
+            <div>
+                <label for="nama_pelanggan_barang" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Pelanggan</label>
+                <input type="text" name="nama_pelanggan" id="nama_pelanggan_barang"
+                       value="{{ old('nama_pelanggan', session('kasir_nama_pelanggan', '')) }}"
+                       class="w-full mt-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                       placeholder="Isi sekali untuk transaksi ini" required>
             </div>
 
             <div>
@@ -185,6 +206,7 @@
             <div class="mb-4">
                 <label for="nama_pelanggan" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nama Pelanggan</label>
                 <input type="text" name="nama_pelanggan" id="nama_pelanggan"
+                    value="{{ old('nama_pelanggan', session('kasir_nama_pelanggan', '')) }}"
                     class="w-full mt-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     placeholder="Masukkan nama pelanggan" required>
             </div>
@@ -405,9 +427,25 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
 <!-- Flatpickr JS -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<style>
+    #barang_picker::-webkit-calendar-picker-indicator {
+        display: none !important;
+        -webkit-appearance: none;
+    }
+</style>
 
 <script>
+    const formTambahBarang = document.querySelector('form[action="{{ route('kasir.tambah') }}"]');
+    const barangPickerInput = document.getElementById('barang_picker');
+    const barangOptions = Array.from(document.querySelectorAll('#barang_list option'));
     const barangSelect = document.getElementById('barang_id');
+    const gramasiSelect = document.getElementById('kd_gramasi');
+    const sizeDewasaSelect = document.getElementById('kd_size_dewasa');
+    const sizeAnakSelect = document.getElementById('kd_size_anak');
+    const barangRefInfo = document.getElementById('barang_ref_info');
+    const barangRefUkuran = document.getElementById('barang_ref_ukuran');
+    const barangRefGramasi = document.getElementById('barang_ref_gramasi');
+    const barangRefWarning = document.getElementById('barang_ref_warning');
     const jumlahInput = document.getElementById('jumlah');
     const totalHargaInput = document.getElementById('total_harga');
     const tintaSelect = document.getElementById('kd_tinta');
@@ -455,10 +493,124 @@
         if (rawInput) rawInput.value = total;
     }
 
+    function normalizeText(value) {
+        return (value || '').toString().trim().toLowerCase();
+    }
+
+    function findOptionByText(selectEl, text) {
+        if (!selectEl || !text) return null;
+        const target = normalizeText(text);
+        return Array.from(selectEl.options).find(opt => normalizeText(opt.textContent) === target);
+    }
+
+    function updateBarangRefWarning() {
+        if (!barangRefWarning || !barangRefInfo || barangRefInfo.classList.contains('hidden')) return;
+
+        const refUkuran = normalizeText(barangRefUkuran?.textContent === '-' ? '' : barangRefUkuran?.textContent);
+        const refGramasi = normalizeText(barangRefGramasi?.textContent === '-' ? '' : barangRefGramasi?.textContent);
+        const inputUkuran = normalizeText(
+            sizeDewasaSelect?.selectedOptions?.[0]?.textContent && sizeDewasaSelect.value
+                ? sizeDewasaSelect.selectedOptions[0].textContent
+                : (sizeAnakSelect?.selectedOptions?.[0]?.textContent && sizeAnakSelect.value
+                    ? sizeAnakSelect.selectedOptions[0].textContent
+                    : '')
+        );
+        const inputGramasi = normalizeText(
+            gramasiSelect?.selectedOptions?.[0]?.textContent && gramasiSelect.value
+                ? gramasiSelect.selectedOptions[0].textContent
+                : ''
+        );
+
+        const warnings = [];
+        if (refUkuran && inputUkuran && refUkuran !== inputUkuran) {
+            warnings.push('Ukuran input berbeda dengan ukuran barang.');
+        }
+        if (refGramasi && inputGramasi && refGramasi !== inputGramasi) {
+            warnings.push('Gramasi input berbeda dengan gramasi barang.');
+        }
+
+        if (warnings.length) {
+            barangRefWarning.textContent = warnings.join(' ');
+            barangRefWarning.classList.remove('hidden');
+        } else {
+            barangRefWarning.textContent = '';
+            barangRefWarning.classList.add('hidden');
+        }
+    }
+
+    function applyBarangReference(selectedOption) {
+        if (!selectedOption) {
+            barangRefInfo?.classList.add('hidden');
+            if (barangRefUkuran) barangRefUkuran.textContent = '-';
+            if (barangRefGramasi) barangRefGramasi.textContent = '-';
+            if (barangRefWarning) {
+                barangRefWarning.textContent = '';
+                barangRefWarning.classList.add('hidden');
+            }
+            return;
+        }
+
+        const refUkuran = selectedOption.dataset.ukuran || '-';
+        const refGramasi = selectedOption.dataset.gramasi || '-';
+        if (barangRefUkuran) barangRefUkuran.textContent = refUkuran;
+        if (barangRefGramasi) barangRefGramasi.textContent = refGramasi;
+        barangRefInfo?.classList.remove('hidden');
+
+        const matchDewasa = findOptionByText(sizeDewasaSelect, refUkuran);
+        const matchAnak = findOptionByText(sizeAnakSelect, refUkuran);
+        if (matchDewasa) {
+            sizeDewasaSelect.value = matchDewasa.value;
+            if (sizeAnakSelect) sizeAnakSelect.value = '';
+        } else if (matchAnak) {
+            sizeAnakSelect.value = matchAnak.value;
+            if (sizeDewasaSelect) sizeDewasaSelect.value = '';
+        }
+
+        const matchGramasi = findOptionByText(gramasiSelect, refGramasi);
+        if (matchGramasi) {
+            gramasiSelect.value = matchGramasi.value;
+        }
+
+        updateBarangRefWarning();
+    }
+
+    function syncBarangIdFromPicker() {
+        if (!barangPickerInput || !barangSelect) return;
+
+        const selected = barangOptions.find(option => option.value === barangPickerInput.value);
+        barangSelect.value = selected ? selected.dataset.id : '';
+        applyBarangReference(selected || null);
+        updateTotalHarga();
+    }
+
     // Event listener
-    barangSelect.addEventListener('change', updateTotalHarga);
     jumlahInput.addEventListener('input', updateTotalHarga);
     tintaSelect.addEventListener('change', updateTotalHarga);
+    if (barangPickerInput) {
+        barangPickerInput.addEventListener('change', syncBarangIdFromPicker);
+        barangPickerInput.addEventListener('input', syncBarangIdFromPicker);
+        barangPickerInput.addEventListener('focus', function () {
+            barangPickerInput.placeholder = 'Ketik nama/lokasi/warna barang...';
+        });
+        barangPickerInput.addEventListener('blur', function () {
+            if (!barangPickerInput.value.trim()) {
+                barangPickerInput.placeholder = '-- Pilih Barang --';
+            }
+        });
+    }
+    if (gramasiSelect) gramasiSelect.addEventListener('change', updateBarangRefWarning);
+    if (sizeDewasaSelect) sizeDewasaSelect.addEventListener('change', updateBarangRefWarning);
+    if (sizeAnakSelect) sizeAnakSelect.addEventListener('change', updateBarangRefWarning);
+    if (formTambahBarang) {
+        formTambahBarang.addEventListener('submit', function (e) {
+            syncBarangIdFromPicker();
+            if (!barangSelect.value) {
+                e.preventDefault();
+                alert('Barang belum valid. Pilih barang dari daftar yang muncul.');
+                barangPickerInput.focus();
+            }
+        });
+    }
 
     // Flatpickr
     flatpickr("#tanggal_selesai", {

@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('kode_jenis_warna', function (Blueprint $table) {
-            $table->integer('harga')->default(0)->after('nama');
-        });
+        if (! Schema::hasColumn('kode_jenis_warna', 'harga')) {
+            Schema::table('kode_jenis_warna', function (Blueprint $table) {
+                $table->integer('harga')->default(0)->after('nama');
+            });
+        }
     }
 
     /**
@@ -21,8 +23,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('kode_jenis_warna', function (Blueprint $table) {
-            $table->dropColumn('harga');
-        });
+        if (Schema::hasColumn('kode_jenis_warna', 'harga')) {
+            Schema::table('kode_jenis_warna', function (Blueprint $table) {
+                $table->dropColumn('harga');
+            });
+        }
     }
 };

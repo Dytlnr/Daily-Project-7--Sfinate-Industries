@@ -1,7 +1,7 @@
 <footer class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm text-center py-3 shadow-inner">
     <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-2">
         <div>
-            © {{ date('Y') }} UMADEV. All rights reserved.
+            © {{ date('Y') }} DYTADEV. All rights reserved.
         </div>
         <div class="text-gray-500 dark:text-gray-400 flex items-center gap-2">
             <span>Version</span>

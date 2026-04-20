@@ -38,6 +38,15 @@ class KasirController extends Controller
 
     public function tambahBarang(Request $request)
     {
+        $namaPelanggan = trim((string) $request->input('nama_pelanggan', ''));
+        if ($namaPelanggan !== '') {
+            Session::put('kasir_nama_pelanggan', $namaPelanggan);
+        }
+
+        if (empty(Session::get('kasir_nama_pelanggan'))) {
+            return back()->with('error', 'Isi nama pelanggan sekali dulu sebelum tambah barang.');
+        }
+
         $barang = Barang::find($request->barang_id);
         if (!$barang) {
             return back()->with('error', 'Barang tidak ditemukan.');
@@ -120,6 +129,12 @@ class KasirController extends Controller
             return back()->with('error', 'Keranjang kosong.');
         }
 
+        $namaPelanggan = trim((string) $request->input('nama_pelanggan', Session::get('kasir_nama_pelanggan', '')));
+        if ($namaPelanggan === '') {
+            return back()->with('error', 'Nama pelanggan wajib diisi.');
+        }
+        Session::put('kasir_nama_pelanggan', $namaPelanggan);
+
         $tanggalSelesaiRaw = Session::get('tanggal_selesai');
         if (!$tanggalSelesaiRaw) {
             return back()->with('error', 'Tanggal selesai tidak tersedia. Silakan isi ulang.');
@@ -147,7 +162,7 @@ class KasirController extends Controller
         // Simpan ke tabel orderans
         $order = Orderan::create([
             'kode_order'        => 'ORD-' . strtoupper(Str::random(6)),
-            'nama_pelanggan'    => $request->nama_pelanggan,
+            'nama_pelanggan'    => $namaPelanggan,
             'member_id'         => $request->member_id,
             'harga_total'       => $totalSetelahDiskon,
             'diskon'            => $totalDiskon,
@@ -199,7 +214,7 @@ class KasirController extends Controller
         }
 
         // Bersihkan session
-        Session::forget(['keranjang', 'tanggal_selesai']);
+        Session::forget(['keranjang', 'tanggal_selesai', 'kasir_nama_pelanggan']);
 
         return redirect()->route('kasir.index')->with('success', 'Transaksi berhasil disimpan.');
     }
@@ -219,18 +234,36 @@ class KasirController extends Controller
             }
         }
 
-        Session::forget('keranjang');
+        Session::forget(['keranjang', 'kasir_nama_pelanggan']);
 
         return back()->with('success', 'Keranjang dikosongkan.');
     }
 
-    public function dataOrderan()
+    public function dataOrderan(Request $request)
     {
+        $search = $request->input('search');
+
         $orderans = Orderan::with([
             'details.barang',
             'details.tinta',    // ← tambahkan ini
             'details.gramasi',  // (opsional jika ingin tampil)
-        ])->latest()->get();
+            'pembayaran',
+        ])
+        ->when($search, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_order', 'like', '%' . $search . '%')
+                    ->orWhere('nama_pelanggan', 'like', '%' . $search . '%')
+                    ->orWhere('status_bayar', 'like', '%' . $search . '%')
+                    ->orWhereHas('pembayaran', function ($p) use ($search) {
+                        $p->where('no_nota', 'like', '%' . $search . '%')
+                            ->orWhere('nama_orderan', 'like', '%' . $search . '%')
+                            ->orWhere('no_telepon', 'like', '%' . $search . '%');
+                    });
+            });
+        })
+        ->latest()
+        ->paginate(10)
+        ->withQueryString();
 
         return view('kasir.data-orderan', compact('orderans'));
     }
@@ -248,16 +281,21 @@ class KasirController extends Controller
                 'keterangan' => 'nullable|string',
                 'is_dp' => 'nullable|in:0,1',
                 'jatuh_tempo' => 'nullable|date|required_if:is_dp,1',
-                'no_whatsapp' => 'required|string',
-                'nama_orderan' => 'required|string',
+                'no_whatsapp' => 'nullable|string',
+                'nama_orderan' => 'nullable|string',
             ]);
 
-            $isDp = (bool)$request->is_dp;
+            $isDp = $request->boolean('is_dp');
 
             // Hitung total yang harus dibayar
             $totalHarga = $order->harga_total;
             $sudahDibayar = $order->pembayaran->sum('jumlah_bayar');
             $sisaBayar = $totalHarga - $sudahDibayar;
+
+            if ($sisaBayar <= 0) {
+                DB::rollBack();
+                return back()->with('success', 'Order ini sudah lunas, tidak ada sisa pembayaran.');
+            }
 
             // Validasi jumlah pembayaran
             if ($request->jumlah_bayar <= 0) {
@@ -265,7 +303,10 @@ class KasirController extends Controller
             }
 
             // Tentukan jenis pembayaran
-            $isDp = (bool)($request->is_dp ?? false);
+            // Jika user centang DP tapi nominal sudah menutup sisa bayar, anggap lunas.
+            if ($isDp && $request->jumlah_bayar >= $sisaBayar) {
+                $isDp = false;
+            }
             $isPelunasan = !$isDp && ($request->jumlah_bayar >= $sisaBayar);
 
             // Validasi untuk DP
@@ -283,8 +324,8 @@ class KasirController extends Controller
                 'jatuh_tempo' => $isDp ? $request->jatuh_tempo : null,
                 'metode' => $request->metode,
                 'keterangan' => $request->keterangan,
-                'no_telepon' => $request->no_whatsapp,
-                'nama_orderan' => $request->nama_orderan,
+                'no_telepon' => $request->filled('no_whatsapp') ? $request->no_whatsapp : null,
+                'nama_orderan' => $request->filled('nama_orderan') ? $request->nama_orderan : $order->nama_pelanggan,
             ]);
 
             // Catat keuangan
