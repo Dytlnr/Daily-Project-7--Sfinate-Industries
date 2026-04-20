@@ -49,10 +49,9 @@ SFINATE INDUSTRIES merupakan aplikasi berbasis web yang dirancang untuk membantu
 - Pengaturan identitas perusahaan
 
 ## Teknologi yang Digunakan
-- Frontend: isi sesuai project kamu
-- Backend: isi sesuai project kamu
-- Database: isi sesuai project kamu
-- Deployment: isi sesuai hosting yang kamu pakai
+- Frontend: Blade Template, Tailwind CSS, Alpine.js, dan Vite
+- Backend: PHP dengan framework Laravel 12
+- Database: MySQL
 
 ## Link Aplikasi
 - **GitHub Repository**: https://github.com/Dytlnr/Daily-Project-7--Sfinate-Industries
